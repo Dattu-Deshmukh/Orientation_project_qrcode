@@ -166,19 +166,42 @@ def create_camera_component():
             return;
         }
 
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            document.getElementById('result').innerHTML = '<div style="color: red;">❌ Camera not ready. Please wait a moment and try again.</div>';
+            return;
+        }
+
+        // Set canvas dimensions to match video
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        context.drawImage(video, 0, 0);
+        
+        // Draw current video frame to canvas
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
         
         // Convert to base64 and send to Streamlit
         const imageData = canvas.toDataURL('image/png');
-        document.getElementById('result').innerHTML = '<div style="color: orange;">🔍 Processing image...</div>';
+        document.getElementById('result').innerHTML = '<div style="color: orange;">🔍 Processing image for QR code...</div>';
         
-        // Send image data to Streamlit
-        window.parent.postMessage({
-            type: 'captured_image',
-            data: imageData
-        }, '*');
+        // Create a custom event to communicate with Streamlit
+        const event = new CustomEvent('qr_image_captured', {
+            detail: { imageData: imageData }
+        });
+        
+        // Dispatch the event
+        window.dispatchEvent(event);
+        
+        // Also try the postMessage approach as backup
+        if (window.parent) {
+            window.parent.postMessage({
+                type: 'captured_image',
+                data: imageData
+            }, '*');
+        }
+        
+        // Store in window object as another fallback
+        window.capturedQRImage = imageData;
+        
+        console.log('Image captured and stored');
     }
 
     // Continuous QR scanning (optional - scans every 2 seconds)
@@ -366,54 +389,41 @@ def main():
     with tab1:
         st.write("### 📹 Live Camera QR Scanner")
         
-        col1, col2 = st.columns([2, 1])
+        col1, col2 = st.columns([3, 2])
         
         with col1:
             # Display the custom camera component
             camera_component = create_camera_component()
-            st.components.v1.html(camera_component, height=600)
+            st.components.v1.html(camera_component, height=650)
         
         with col2:
-            st.write("### 📋 Instructions")
-            st.info("""
-            **Camera Controls:**
-            - 🔄 **Switch Camera**: Toggle front/rear
-            - 📸 **Capture QR**: Take photo to scan
-            - ⏸️ **Stop Camera**: Turn off camera
-            
-            **Current Mode:**
-            - **Default: Rear Camera** 📱
-            - Better for QR code scanning
-            
-            **Tips:**
-            - Ensure good lighting
-            - Hold phone steady
-            - QR code should fill most of the frame
-            - Try switching cameras if one doesn't work
-            """)
-            
-            # Image processing area
+            # Image processing and results area
             st.write("### 🔍 Scan Results")
             
-            # Handle captured images via JavaScript postMessage
-            captured_image = st.empty()
-            scan_result = st.empty()
-        
-        # Handle image capture from JavaScript
-        if 'captured_image_data' in st.session_state:
-            try:
-                # Decode base64 image
-                image_data = st.session_state.captured_image_data
-                if image_data.startswith('data:image'):
-                    # Remove the data:image/png;base64, part
-                    base64_data = image_data.split(',')[1]
-                    image_bytes = base64.b64decode(base64_data)
-                    
-                    # Convert to PIL Image
-                    img = Image.open(io.BytesIO(image_bytes))
-                    
-                    with col2:
-                        st.image(img, caption="Captured Image", width=250)
+            # Check for captured images from multiple sources
+            captured_image_data = None
+            
+            # Method 1: Check session state
+            if 'captured_qr_image' in st.session_state:
+                captured_image_data = st.session_state.captured_qr_image
+                del st.session_state.captured_qr_image
+            
+            # Method 2: Check if there's a rerun trigger
+            if st.button("🔄 Check for Captured Image", key="check_capture"):
+                st.rerun()
+            
+            # Process captured image if available
+            if captured_image_data:
+                try:
+                    # Decode base64 image
+                    if captured_image_data.startswith('data:image'):
+                        base64_data = captured_image_data.split(',')[1]
+                        image_bytes = base64.b64decode(base64_data)
+                        
+                        # Convert to PIL Image
+                        img = Image.open(io.BytesIO(image_bytes))
+                        
+                        st.image(img, caption="📸 Captured Image", width=300)
                         
                         with st.spinner("🔍 Scanning for QR code..."):
                             qr_data = detect_qr_with_opencv(img)
@@ -425,11 +435,63 @@ def main():
                             st.error("⚠️ **No QR code detected** in the image.")
                             st.write("Try adjusting the camera angle or lighting.")
                 
-                # Clear the captured image from session state
-                del st.session_state.captured_image_data
+                except Exception as e:
+                    st.error(f"Error processing captured image: {e}")
+            
+            else:
+                st.info("📷 Point camera at QR code and click 'Capture QR' button")
                 
-            except Exception as e:
-                st.error(f"Error processing captured image: {e}")
+                # Show a placeholder for captured images
+                st.empty()
+        
+        # Instructions section moved here - after the camera and scan results
+        st.write("---")
+        st.write("### 📋 Camera Instructions & Tips")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.info("""
+            **🎯 Camera Controls:**
+            - 🔄 **Switch Camera**: Toggle front/rear
+            - 📸 **Capture QR**: Take photo to scan
+            - ⏸️ **Stop Camera**: Turn off camera
+            
+            **📱 Current Mode:**
+            - **Default: Rear Camera** 
+            - Better for QR code scanning
+            """)
+        
+        with col2:
+            st.success("""
+            **✅ Scanning Tips:**
+            - Ensure good lighting
+            - Hold phone steady
+            - QR code should fill most of frame
+            - Try switching cameras if one doesn't work
+            - Wait for camera to focus before capturing
+            """)
+        
+        # Troubleshooting section
+        with st.expander("🔧 Troubleshooting"):
+            st.write("""
+            **If capture is not working:**
+            1. Wait 2-3 seconds after camera starts
+            2. Ensure QR code is clearly visible
+            3. Try the 'Switch Camera' button
+            4. Check browser camera permissions
+            5. Use 'Manual Entry' tab as backup
+            
+            **If camera won't start:**
+            1. Refresh the page
+            2. Allow camera permissions in browser
+            3. Try a different browser (Chrome/Safari recommended)
+            4. Check if another app is using the camera
+            """)
+        
+        # Auto-refresh mechanism to check for captures
+        if st.button("🔄 Refresh to Check Captures", key="auto_refresh"):
+            st.rerun()
     
     with tab2:
         st.write("### 📝 Manual Student ID Entry")
@@ -451,9 +513,31 @@ def main():
                     st.warning("Please enter a valid Student ID.")
         
         with col2:
-            st.write("**Alternative QR Scanner:**")
+            st.write("**📸 Alternative Methods:**")
+            
+            # File uploader as another option
+            uploaded_file = st.file_uploader(
+                "Upload QR Code Image", 
+                type=['png', 'jpg', 'jpeg'],
+                help="Upload a photo of the QR code if camera scanning fails"
+            )
+            
+            if uploaded_file:
+                img = Image.open(uploaded_file)
+                st.image(img, caption="Uploaded Image", width=200)
+                
+                with st.spinner("🔍 Scanning uploaded QR code..."):
+                    qr_data = detect_qr_with_opencv(img)
+                
+                if qr_data:
+                    st.success(f"📋 **Scanned ID:** {qr_data}")
+                    process_student_scan(qr_data, sheet)
+                else:
+                    st.error("⚠️ No QR code detected in uploaded image.")
+            
+            st.write("**📷 Backup Camera:**")
             # Fallback to Streamlit's built-in camera
-            fallback_image = st.camera_input("📷 Fallback Camera (if live camera fails)")
+            fallback_image = st.camera_input("Fallback Camera (if live camera fails)")
             
             if fallback_image:
                 img = Image.open(fallback_image)
@@ -468,20 +552,31 @@ def main():
                 else:
                     st.error("⚠️ No QR code detected.")
     
-    # JavaScript to handle postMessage from camera component
+    # Enhanced JavaScript to handle captured images better
     st.markdown("""
     <script>
+    // Handle postMessage from camera component
     window.addEventListener('message', function(event) {
-        if (event.data.type === 'captured_image') {
-            // Store captured image data in Streamlit session state
-            window.parent.postMessage({
-                type: 'streamlit:setComponentValue',
-                data: {
-                    captured_image_data: event.data.data
-                }
-            }, '*');
+        if (event.data && event.data.type === 'captured_image') {
+            console.log('Received captured image via postMessage');
+            // Trigger Streamlit to update with captured image
+            window.capturedImageForStreamlit = event.data.data;
         }
     });
+    
+    // Handle custom events
+    window.addEventListener('qr_image_captured', function(event) {
+        console.log('Received captured image via custom event');
+        window.capturedImageForStreamlit = event.detail.imageData;
+    });
+    
+    // Check for captured images periodically
+    setInterval(function() {
+        if (window.capturedQRImage || window.capturedImageForStreamlit) {
+            console.log('Found captured image, triggering Streamlit update');
+            // You can trigger a Streamlit rerun here if needed
+        }
+    }, 1000);
     </script>
     """, unsafe_allow_html=True)
     
