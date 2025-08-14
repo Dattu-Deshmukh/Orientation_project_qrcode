@@ -61,13 +61,13 @@ def create_camera_component():
         <video id="video" width="100%" height="400" style="border: 2px solid #4CAF50; border-radius: 10px; max-width: 500px;" autoplay></video>
         <br><br>
         <div style="margin: 10px;">
-            <button onclick="switchCamera()" style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin: 5px; cursor: pointer;">
-                📷 Switch Camera
+            <button onclick="switchCamera()" style="background-color: #2196F3; color: white; padding: 12px 20px; border: none; border-radius: 8px; margin: 5px; cursor: pointer; font-size: 16px;">
+                🔄 Switch Camera
             </button>
-            <button onclick="captureImage()" style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin: 5px; cursor: pointer;">
+            <button onclick="captureImage()" style="background-color: #4CAF50; color: white; padding: 12px 20px; border: none; border-radius: 8px; margin: 5px; cursor: pointer; font-size: 16px;">
                 📸 Capture QR
             </button>
-            <button onclick="toggleCamera()" id="toggleBtn" style="background-color: #FF9800; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin: 5px; cursor: pointer;">
+            <button onclick="toggleCamera()" id="toggleBtn" style="background-color: #FF9800; color: white; padding: 12px 20px; border: none; border-radius: 8px; margin: 5px; cursor: pointer; font-size: 16px;">
                 ⏸️ Stop Camera
             </button>
         </div>
@@ -80,7 +80,7 @@ def create_camera_component():
     let canvas = document.getElementById('canvas');
     let context = canvas.getContext('2d');
     let currentStream = null;
-    let facingMode = 'environment'; // Start with rear camera
+    let facingMode = 'environment'; // Start with rear camera (back camera)
     let isScanning = false;
     let cameraActive = false;
 
@@ -91,35 +91,56 @@ def create_camera_component():
                 currentStream.getTracks().forEach(track => track.stop());
             }
 
+            // Try rear camera first with more specific constraints
             const constraints = {
                 video: {
-                    facingMode: facingMode,
-                    width: { ideal: 500 },
-                    height: { ideal: 400 }
+                    facingMode: { exact: facingMode },
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 }
                 }
             };
 
-            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (err) {
+                // Fallback if exact facingMode fails
+                console.log('Exact facingMode failed, trying ideal...', err);
+                const fallbackConstraints = {
+                    video: {
+                        facingMode: { ideal: facingMode },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+                currentStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+            }
+
             video.srcObject = currentStream;
             cameraActive = true;
             document.getElementById('toggleBtn').innerHTML = '⏸️ Stop Camera';
-            document.getElementById('result').innerHTML = '<div style="color: green;">📹 Camera active - Point at QR code and capture</div>';
+            
+            const cameraType = facingMode === 'environment' ? '📱 Rear Camera' : '🤳 Front Camera';
+            document.getElementById('result').innerHTML = `<div style="color: green;">📹 ${cameraType} Active - Point at QR code and capture</div>`;
             
             // Start continuous QR scanning
             startContinuousScanning();
             
         } catch (error) {
             console.error('Error accessing camera:', error);
-            document.getElementById('result').innerHTML = '<div style="color: red;">❌ Camera access denied or not available</div>';
+            document.getElementById('result').innerHTML = '<div style="color: red;">❌ Camera access denied or not available. Please allow camera permissions and try again.</div>';
         }
     }
 
     // Switch between front and rear camera
     async function switchCamera() {
         facingMode = facingMode === 'environment' ? 'user' : 'environment';
-        const cameraType = facingMode === 'environment' ? 'Rear' : 'Front';
-        document.getElementById('result').innerHTML = `<div style="color: blue;">🔄 Switching to ${cameraType} camera...</div>`;
-        await startCamera();
+        const cameraType = facingMode === 'environment' ? '📱 Rear Camera' : '🤳 Front Camera';
+        document.getElementById('result').innerHTML = `<div style="color: blue;">🔄 Switching to ${cameraType}...</div>`;
+        
+        // Small delay to show the switching message
+        setTimeout(() => {
+            startCamera();
+        }, 500);
     }
 
     // Toggle camera on/off
@@ -174,9 +195,14 @@ def create_camera_component():
         }, 2000);
     }
 
-    // Auto-start camera when page loads
+    // Auto-start camera when page loads with rear camera
     window.addEventListener('load', () => {
-        setTimeout(startCamera, 1000);
+        // Ensure we start with rear camera
+        facingMode = 'environment';
+        setTimeout(() => {
+            document.getElementById('result').innerHTML = '<div style="color: orange;">📷 Starting rear camera...</div>';
+            startCamera();
+        }, 1000);
     });
 
     // Handle page visibility change
@@ -351,15 +377,19 @@ def main():
             st.write("### 📋 Instructions")
             st.info("""
             **Camera Controls:**
-            - 📷 **Switch Camera**: Toggle front/rear
+            - 🔄 **Switch Camera**: Toggle front/rear
             - 📸 **Capture QR**: Take photo to scan
             - ⏸️ **Stop Camera**: Turn off camera
             
+            **Current Mode:**
+            - **Default: Rear Camera** 📱
+            - Better for QR code scanning
+            
             **Tips:**
-            - Rear camera works best for QR codes
             - Ensure good lighting
             - Hold phone steady
             - QR code should fill most of the frame
+            - Try switching cameras if one doesn't work
             """)
             
             # Image processing area
