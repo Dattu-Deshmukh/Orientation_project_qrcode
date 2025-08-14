@@ -1,5 +1,5 @@
 streamlit
-pandas
-opencv-python-headless
+opencv-python
 pyzbar
-Pillow
+pillow
+pandas
