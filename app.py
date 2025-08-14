@@ -1,13 +1,26 @@
 import streamlit as st
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 from PIL import Image
 import io
-import cv2
 import numpy as np
 import base64
 import time
+
+# Handle optional imports gracefully
+try:
+    import gspread
+    from oauth2client.service_account import ServiceAccountCredentials
+    GSPREAD_AVAILABLE = True
+except ImportError:
+    st.error("❌ Google Sheets integration not available. Please install: pip install gspread oauth2client")
+    GSPREAD_AVAILABLE = False
+
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    st.warning("⚠️ OpenCV not available. QR detection may be limited. Install with: pip install opencv-python-headless")
+    CV2_AVAILABLE = False
 
 # ========================
 # QR CODE DETECTION FUNCTIONS
@@ -15,6 +28,10 @@ import time
 
 def detect_qr_with_opencv(image):
     """Try to detect QR code using OpenCV"""
+    if not CV2_AVAILABLE:
+        st.error("OpenCV not available for QR detection")
+        return None
+        
     try:
         # Convert PIL image to OpenCV format
         img_array = np.array(image)
@@ -186,6 +203,10 @@ def create_camera_component():
 @st.cache_resource
 def init_google_sheets():
     """Initialize Google Sheets connection with caching"""
+    if not GSPREAD_AVAILABLE:
+        st.error("Google Sheets integration not available. Please install required packages.")
+        return None
+        
     try:
         scope = ["https://spreadsheets.google.com/feeds",
                  "https://www.googleapis.com/auth/drive"]
@@ -303,6 +324,12 @@ def main():
     """, unsafe_allow_html=True)
     
     # Initialize Google Sheets
+    if not GSPREAD_AVAILABLE:
+        st.error("❌ **Google Sheets integration not available**")
+        st.info("To enable Google Sheets functionality, please ensure these packages are installed:")
+        st.code("pip install gspread oauth2client")
+        st.stop()
+    
     sheet = init_google_sheets()
     if not sheet:
         st.stop()
