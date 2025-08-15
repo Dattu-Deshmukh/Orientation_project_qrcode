@@ -51,7 +51,7 @@ def detect_qr_with_opencv(image):
 
 # Remove the custom camera component since we're using Streamlit's built-in camera
                 # captureImage();
-            }
+        
         }, 2000);
     }
 
