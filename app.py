@@ -23,7 +23,7 @@ except ImportError:
     CV2_AVAILABLE = False
 
 # ========================
-# QR CODE DETECTION FUNCTIONS
+# QR CODE DETECTION FUNCTIONS  
 # ========================
 
 def detect_qr_with_opencv(image):
@@ -49,171 +49,8 @@ def detect_qr_with_opencv(image):
         st.error(f"OpenCV detection error: {e}")
         return None
 
-# ========================
-# CUSTOM CAMERA COMPONENT
-# ========================
-
-def create_camera_component():
-    """Create a custom camera component with rear camera support"""
-    
-    camera_html = """
-    <div style="text-align: center; padding: 20px;">
-        <video id="video" width="100%" height="400" style="border: 2px solid #4CAF50; border-radius: 10px; max-width: 500px;" autoplay></video>
-        <br><br>
-        <div style="margin: 10px;">
-            <button onclick="switchCamera()" style="background-color: #2196F3; color: white; padding: 12px 20px; border: none; border-radius: 8px; margin: 5px; cursor: pointer; font-size: 16px;">
-                🔄 Switch Camera
-            </button>
-            <button onclick="captureImage()" style="background-color: #4CAF50; color: white; padding: 12px 20px; border: none; border-radius: 8px; margin: 5px; cursor: pointer; font-size: 16px;">
-                📸 Capture QR
-            </button>
-            <button onclick="toggleCamera()" id="toggleBtn" style="background-color: #FF9800; color: white; padding: 12px 20px; border: none; border-radius: 8px; margin: 5px; cursor: pointer; font-size: 16px;">
-                ⏸️ Stop Camera
-            </button>
-        </div>
-        <canvas id="canvas" width="500" height="400" style="display: none;"></canvas>
-        <div id="result" style="margin-top: 20px; font-size: 16px;"></div>
-    </div>
-
-    <script>
-    let video = document.getElementById('video');
-    let canvas = document.getElementById('canvas');
-    let context = canvas.getContext('2d');
-    let currentStream = null;
-    let facingMode = 'environment'; // Start with rear camera (back camera)
-    let isScanning = false;
-    let cameraActive = false;
-
-    // Start camera function
-    async function startCamera() {
-        try {
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-            }
-
-            // Try rear camera first with more specific constraints
-            const constraints = {
-                video: {
-                    facingMode: { exact: facingMode },
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 }
-                }
-            };
-
-            try {
-                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-            } catch (err) {
-                // Fallback if exact facingMode fails
-                console.log('Exact facingMode failed, trying ideal...', err);
-                const fallbackConstraints = {
-                    video: {
-                        facingMode: { ideal: facingMode },
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                };
-                currentStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-            }
-
-            video.srcObject = currentStream;
-            cameraActive = true;
-            document.getElementById('toggleBtn').innerHTML = '⏸️ Stop Camera';
-            
-            const cameraType = facingMode === 'environment' ? '📱 Rear Camera' : '🤳 Front Camera';
-            document.getElementById('result').innerHTML = `<div style="color: green;">📹 ${cameraType} Active - Point at QR code and capture</div>`;
-            
-            // Start continuous QR scanning
-            startContinuousScanning();
-            
-        } catch (error) {
-            console.error('Error accessing camera:', error);
-            document.getElementById('result').innerHTML = '<div style="color: red;">❌ Camera access denied or not available. Please allow camera permissions and try again.</div>';
-        }
-    }
-
-    // Switch between front and rear camera
-    async function switchCamera() {
-        facingMode = facingMode === 'environment' ? 'user' : 'environment';
-        const cameraType = facingMode === 'environment' ? '📱 Rear Camera' : '🤳 Front Camera';
-        document.getElementById('result').innerHTML = `<div style="color: blue;">🔄 Switching to ${cameraType}...</div>`;
-        
-        // Small delay to show the switching message
-        setTimeout(() => {
-            startCamera();
-        }, 500);
-    }
-
-    // Toggle camera on/off
-    function toggleCamera() {
-        if (cameraActive) {
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-            }
-            video.srcObject = null;
-            cameraActive = false;
-            isScanning = false;
-            document.getElementById('toggleBtn').innerHTML = '▶️ Start Camera';
-            document.getElementById('result').innerHTML = '<div style="color: gray;">📷 Camera stopped</div>';
-        } else {
-            startCamera();
-        }
-    }
-
-    // Capture image function
-    function captureImage() {
-        if (!cameraActive) {
-            document.getElementById('result').innerHTML = '<div style="color: red;">❌ Please start the camera first</div>';
-            return;
-        }
-
-        if (video.videoWidth === 0 || video.videoHeight === 0) {
-            document.getElementById('result').innerHTML = '<div style="color: red;">❌ Camera not ready. Please wait a moment and try again.</div>';
-            return;
-        }
-
-        // Set canvas dimensions to match video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        
-        // Draw current video frame to canvas
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        // Convert to base64 and send to Streamlit
-        const imageData = canvas.toDataURL('image/png');
-        document.getElementById('result').innerHTML = '<div style="color: orange;">🔍 Processing image for QR code...</div>';
-        
-        // Create a custom event to communicate with Streamlit
-        const event = new CustomEvent('qr_image_captured', {
-            detail: { imageData: imageData }
-        });
-        
-        // Dispatch the event
-        window.dispatchEvent(event);
-        
-        // Also try the postMessage approach as backup
-        if (window.parent) {
-            window.parent.postMessage({
-                type: 'captured_image',
-                data: imageData
-            }, '*');
-        }
-        
-        // Store in window object as another fallback
-        window.capturedQRImage = imageData;
-        
-        console.log('Image captured and stored');
-    }
-
-    // Continuous QR scanning (optional - scans every 2 seconds)
-    function startContinuousScanning() {
-        if (isScanning) return;
-        isScanning = true;
-        
-        setInterval(() => {
-            if (cameraActive && video.videoWidth > 0) {
-                // Auto-capture for continuous scanning (optional)
-                // Uncomment the next line if you want automatic scanning every 2 seconds
-                // captureImage();
+# Remove the custom camera component since we're using Streamlit's built-in camera
+                # captureImage();
             }
         }, 2000);
     }
@@ -327,8 +164,8 @@ def process_student_scan(qr_data, sheet):
 
 def main():
     st.set_page_config(
-        page_title="Orientation QR Scanner", 
-        page_icon="📷", 
+        page_title="NREC Orientation QR Scanner", 
+        page_icon="🎓", 
         layout="wide"
     )
     
@@ -338,8 +175,25 @@ def main():
     .main-header {
         text-align: center;
         color: #4CAF50;
-        font-size: 2.5rem;
+        font-size: 2.8rem;
+        margin-bottom: 0.5rem;
+        font-weight: bold;
+    }
+    .college-header {
+        text-align: center;
+        color: #2196F3;
+        font-size: 1.5rem;
         margin-bottom: 1rem;
+        font-style: italic;
+    }
+    .orientation-banner {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        text-align: center;
+        margin: 20px 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     }
     .instruction-box {
         background-color: #f0f2f6;
@@ -359,16 +213,29 @@ def main():
     </style>
     """, unsafe_allow_html=True)
     
+    # College Header
     st.markdown('<h1 class="main-header">🎓 Orientation QR Scanner</h1>', unsafe_allow_html=True)
+    st.markdown('<h2 class="college-header">Narsimha Reddy Engineering College</h2>', unsafe_allow_html=True)
+    
+    # Orientation Day Banner
+    st.markdown("""
+    <div class="orientation-banner">
+        <h2>🎉 Welcome to Orientation Day!</h2>
+        <h3>📅 August 18th, 2025</h3>
+        <p><strong>Dear Students,</strong> Welcome to Narsimha Reddy Engineering College! 
+        This QR scanner will help track your attendance for today's orientation program.</p>
+        <p>🕐 <strong>Program Schedule:</strong> Registration → Welcome Session → Campus Tour → Department Introduction</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("""
     <div class="instruction-box">
-    📌 <strong>Live Camera Instructions:</strong><br>
-    1. Allow camera permissions when prompted<br>
-    2. Use "Switch Camera" to toggle between front/rear camera<br>
-    3. Point rear camera at QR code for best results<br>
-    4. Click "Capture QR" when QR code is visible<br>
-    5. Use manual entry if camera scanning fails
+    📌 <strong>Orientation Day Instructions:</strong><br>
+    1. Scan your student QR code for <strong>Entry</strong> when you arrive<br>
+    2. Participate in all orientation activities<br>
+    3. Scan again for <strong>Exit</strong> when leaving<br>
+    4. Keep your student ID card ready for verification<br>
+    5. Contact orientation volunteers if you need assistance
     </div>
     """, unsafe_allow_html=True)
     
@@ -384,147 +251,58 @@ def main():
         st.stop()
     
     # Create tabs for different input methods
-    tab1, tab2 = st.tabs(["📹 Live Camera Scanner", "📝 Manual Entry"])
+    tab1, tab2 = st.tabs(["📱 QR Camera Scanner", "📝 Manual Entry"])
     
     with tab1:
-        st.write("### 📹 Live Camera QR Scanner")
+        st.write("### 📱 Camera QR Scanner")
         
         col1, col2 = st.columns([3, 2])
         
         with col1:
-            # Display the custom camera component
-            camera_component = create_camera_component()
-            st.components.v1.html(camera_component, height=650)
-        
-        with col2:
-            # Image processing and results area
-            st.write("### 🔍 Scan Results")
-            
-            # Check for captured images from multiple sources
-            captured_image_data = None
-            
-            # Method 1: Check session state
-            if 'captured_qr_image' in st.session_state:
-                captured_image_data = st.session_state.captured_qr_image
-                del st.session_state.captured_qr_image
-            
-            # Method 2: Check if there's a rerun trigger
-            if st.button("🔄 Check for Captured Image", key="check_capture"):
-                st.rerun()
-            
-            # Process captured image if available
-            if captured_image_data:
-                try:
-                    # Decode base64 image
-                    if captured_image_data.startswith('data:image'):
-                        base64_data = captured_image_data.split(',')[1]
-                        image_bytes = base64.b64decode(base64_data)
-                        
-                        # Convert to PIL Image
-                        img = Image.open(io.BytesIO(image_bytes))
-                        
-                        st.image(img, caption="📸 Captured Image", width=300)
-                        
-                        with st.spinner("🔍 Scanning for QR code..."):
-                            qr_data = detect_qr_with_opencv(img)
-                        
-                        if qr_data:
-                            st.success(f"📋 **Scanned ID:** {qr_data}")
-                            process_student_scan(qr_data, sheet)
-                        else:
-                            st.error("⚠️ **No QR code detected** in the image.")
-                            st.write("Try adjusting the camera angle or lighting.")
-                
-                except Exception as e:
-                    st.error(f"Error processing captured image: {e}")
-            
-            else:
-                st.info("📷 Point camera at QR code and click 'Capture QR' button")
-                
-                # Show a placeholder for captured images
-                st.empty()
-        
-        # Instructions section moved here - after the camera and scan results
-        st.write("---")
-        st.write("### 📋 Camera Instructions & Tips")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.info("""
-            **🎯 Camera Controls:**
-            - 🔄 **Switch Camera**: Toggle front/rear
-            - 📸 **Capture QR**: Take photo to scan
-            - ⏸️ **Stop Camera**: Turn off camera
-            
-            **📱 Current Mode:**
-            - **Default: Rear Camera** 
-            - Better for QR code scanning
-            """)
-        
-        with col2:
-            st.success("""
-            **✅ Scanning Tips:**
-            - Ensure good lighting
-            - Hold phone steady
-            - QR code should fill most of frame
-            - Try switching cameras if one doesn't work
-            - Wait for camera to focus before capturing
-            """)
-        
-        # Troubleshooting section
-        with st.expander("🔧 Troubleshooting"):
-            st.write("""
-            **If capture is not working:**
-            1. Wait 2-3 seconds after camera starts
-            2. Ensure QR code is clearly visible
-            3. Try the 'Switch Camera' button
-            4. Check browser camera permissions
-            5. Use 'Manual Entry' tab as backup
-            
-            **If camera won't start:**
-            1. Refresh the page
-            2. Allow camera permissions in browser
-            3. Try a different browser (Chrome/Safari recommended)
-            4. Check if another app is using the camera
-            """)
-        
-        # Auto-refresh mechanism to check for captures
-        if st.button("🔄 Refresh to Check Captures", key="auto_refresh"):
-            st.rerun()
-    
-    with tab2:
-        st.write("### 📝 Manual Student ID Entry")
-        st.info("Use this option if the camera scanner is not working properly.")
-        
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            manual_id = st.text_input(
-                "Enter Student ID:", 
-                placeholder="e.g., 12345",
-                help="Enter the student ID exactly as it appears on their QR code"
+            # Primary Camera Scanner (using working Streamlit camera)
+            st.write("#### 📷 Scan QR Code")
+            camera_image = st.camera_input(
+                "Point camera at student's QR code and take photo",
+                help="For best results: ensure good lighting, hold steady, QR code fills frame"
             )
             
-            if st.button("🔍 Process Student ID", type="primary"):
-                if manual_id.strip():
-                    process_student_scan(manual_id.strip(), sheet)
+            if camera_image:
+                img = Image.open(camera_image)
+                st.image(img, caption="📸 Captured QR Code", width=400)
+                
+                with st.spinner("🔍 Scanning for QR code..."):
+                    qr_data = detect_qr_with_opencv(img)
+                
+                if qr_data:
+                    st.success(f"📋 **Scanned Student ID:** {qr_data}")
+                    process_student_scan(qr_data, sheet)
                 else:
-                    st.warning("Please enter a valid Student ID.")
+                    st.error("⚠️ **No QR code detected** in the image.")
+                    st.write("**Try again with:**")
+                    st.write("• Better lighting")
+                    st.write("• QR code fully visible in frame")
+                    st.write("• Hold camera steady")
+                    st.write("• Clean camera lens")
         
         with col2:
-            st.write("**📸 Alternative Methods:**")
+            # Scan Results and Status
+            st.write("#### 🔍 Scan Status")
             
-            # File uploader as another option
+            if not camera_image:
+                st.info("📷 **Ready to scan**\nPoint camera at QR code and capture photo")
+            
+            # Alternative upload option
+            st.write("---")
+            st.write("#### 📤 Alternative: Upload QR Image")
             uploaded_file = st.file_uploader(
-                "Upload QR Code Image", 
+                "Upload QR Code Photo", 
                 type=['png', 'jpg', 'jpeg'],
-                help="Upload a photo of the QR code if camera scanning fails"
+                help="Upload a clear photo of the QR code if camera doesn't work"
             )
             
             if uploaded_file:
                 img = Image.open(uploaded_file)
-                st.image(img, caption="Uploaded Image", width=200)
+                st.image(img, caption="Uploaded QR Code", width=300)
                 
                 with st.spinner("🔍 Scanning uploaded QR code..."):
                     qr_data = detect_qr_with_opencv(img)
@@ -534,58 +312,148 @@ def main():
                     process_student_scan(qr_data, sheet)
                 else:
                     st.error("⚠️ No QR code detected in uploaded image.")
+        
+        # Instructions section moved here - after the camera and scan results
+        st.write("---")
+        st.write("### 📋 Camera Scanning Tips")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.info("""
+            **📱 Camera Tips:**
+            • Use rear camera if available
+            • Ensure good lighting
+            • Hold device steady
+            • QR code should fill most of frame
+            • Clean camera lens
+            """)
+        
+        with col2:
+            st.success("""
+            **✅ For Best Results:**
+            • Wait for camera to focus
+            • Avoid shadows on QR code
+            • Keep QR code flat and straight
+            • Distance: 6-12 inches away
+            • Try different angles if needed
+            """)
             
-            st.write("**📷 Backup Camera:**")
-            # Fallback to Streamlit's built-in camera
-            fallback_image = st.camera_input("Fallback Camera (if live camera fails)")
+        with col3:
+            st.warning("""
+            **⚠️ Troubleshooting:**
+            • Refresh page if camera fails
+            • Allow camera permissions
+            • Try different browser
+            • Use file upload as backup
+            • Contact tech support if issues persist
+            """)
+        
+        # Orientation Day Information
+        st.write("---")
+        st.write("### 🎓 Orientation Day Information")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.info("""
+            **📅 Today's Schedule - August 18th:**
+            • 9:00 AM - Registration & Check-in
+            • 10:00 AM - Welcome Address
+            • 11:00 AM - Campus Tour
+            • 12:30 PM - Lunch Break
+            • 2:00 PM - Department Introductions
+            • 4:00 PM - Student Activities Fair
+            • 5:30 PM - Closing & Check-out
+            """)
             
-            if fallback_image:
-                img = Image.open(fallback_image)
-                st.image(img, caption="Captured Image", width=200)
-                
-                with st.spinner("🔍 Scanning QR code..."):
-                    qr_data = detect_qr_with_opencv(img)
-                
-                if qr_data:
-                    st.success(f"📋 **Scanned ID:** {qr_data}")
-                    process_student_scan(qr_data, sheet)
+        with col2:
+            st.success("""
+            **🏫 Important Reminders:**
+            • Bring your admission documents
+            • Carry student ID card
+            • Scan QR code for entry AND exit
+            • Follow COVID protocols if applicable
+            • Ask volunteers for help
+            • Join your department WhatsApp group
+            """)
+        
+        # Emergency contact
+        st.error("""
+        **🆘 Need Help?**
+        Contact Orientation Help Desk: **+91-XXXX-XXXXXX** | Email: **orientation@nrec.edu.in**
+        """)
+
+    
+    with tab2:
+        st.write("### 📝 Manual Student ID Entry")
+        st.info("Use this option if camera scanning is not available or as a backup method.")
+        
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.write("#### ✏️ Enter Student Details")
+            manual_id = st.text_input(
+                "Student ID:", 
+                placeholder="e.g., NREC2025001",
+                help="Enter the student ID exactly as shown on the QR code or ID card"
+            )
+            
+            if st.button("🔍 Process Student Entry/Exit", type="primary", use_container_width=True):
+                if manual_id.strip():
+                    process_student_scan(manual_id.strip(), sheet)
                 else:
-                    st.error("⚠️ No QR code detected.")
+                    st.warning("⚠️ Please enter a valid Student ID.")
+        
+        with col2:
+            st.write("#### 📊 Manual Entry Guidelines")
+            st.success("""
+            **✅ When to use Manual Entry:**
+            • Camera not working
+            • QR code damaged/unreadable
+            • Student forgot QR code
+            • Technical issues with scanning
+            • Backup verification needed
+            """)
+            
+            st.info("""
+            **📝 ID Format Examples:**
+            • NREC2025001 (Regular format)
+            • 2025CSE001 (Department wise)
+            • Or any format in your system
+            """)
+        
+        # Quick stats or recent entries (optional)
+        st.write("---")
+        st.write("#### 📈 Today's Orientation Stats")
+        
+        # You can add real-time stats here
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("🟢 Entries Today", "- -", help="Students who have checked in")
+        
+        with col2:
+            st.metric("🔄 Currently Present", "- -", help="Students currently in orientation")
+        
+        with col3:
+            st.metric("🟡 Exits Today", "- -", help="Students who have checked out")
     
-    # Enhanced JavaScript to handle captured images better
-    st.markdown("""
-    <script>
-    // Handle postMessage from camera component
-    window.addEventListener('message', function(event) {
-        if (event.data && event.data.type === 'captured_image') {
-            console.log('Received captured image via postMessage');
-            // Trigger Streamlit to update with captured image
-            window.capturedImageForStreamlit = event.data.data;
-        }
-    });
+    # Remove the old JavaScript and HTML components since we're using Streamlit's camera
+    # Enhanced JavaScript section is no longer needed
     
-    // Handle custom events
-    window.addEventListener('qr_image_captured', function(event) {
-        console.log('Received captured image via custom event');
-        window.capturedImageForStreamlit = event.detail.imageData;
-    });
-    
-    // Check for captured images periodically
-    setInterval(function() {
-        if (window.capturedQRImage || window.capturedImageForStreamlit) {
-            console.log('Found captured image, triggering Streamlit update');
-            // You can trigger a Streamlit rerun here if needed
-        }
-    }, 1000);
-    </script>
-    """, unsafe_allow_html=True)
-    
-    # Footer
+    # Footer with college information
     st.markdown("---")
-    st.markdown(
-        "<p style='text-align: center; color: #666;'>🏫 Orientation Management System | Live Camera QR Scanner</p>", 
-        unsafe_allow_html=True
-    )
+    st.markdown("""
+    <div style="text-align: center; color: #666; padding: 20px; background-color: #f8f9fa; border-radius: 10px;">
+        <h4>🏫 Narsimha Reddy Engineering College</h4>
+        <p><strong>Orientation Day - August 18th, 2025</strong></p>
+        <p>📍 Campus Address | 📞 Contact: +91-XXXX-XXXXXX | 📧 info@nrec.edu.in</p>
+        <p style="font-size: 12px; margin-top: 15px;">
+            © 2025 NREC - Orientation Management System | Developed for Student Services
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
