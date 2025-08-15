@@ -3,8 +3,6 @@ from datetime import datetime
 from PIL import Image
 import io
 import numpy as np
-import base64
-import time
 
 # Handle optional imports gracefully
 try:
@@ -48,39 +46,6 @@ def detect_qr_with_opencv(image):
     except Exception as e:
         st.error(f"OpenCV detection error: {e}")
         return None
-
-# Remove the custom camera component since we're using Streamlit's built-in camera
-                # captureImage();
-        
-        }, 2000);
-    }
-
-    // Auto-start camera when page loads with rear camera
-    window.addEventListener('load', () => {
-        // Ensure we start with rear camera
-        facingMode = 'environment';
-        setTimeout(() => {
-            document.getElementById('result').innerHTML = '<div style="color: orange;">📷 Starting rear camera...</div>';
-            startCamera();
-        }, 1000);
-    });
-
-    // Handle page visibility change
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden && cameraActive) {
-            // Page is hidden, stop camera to save resources
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-            }
-        } else if (!document.hidden && cameraActive) {
-            // Page is visible again, restart camera
-            startCamera();
-        }
-    });
-    </script>
-    """
-    
-    return camera_html
 
 # ========================
 # GOOGLE SHEETS CONNECTION
@@ -384,7 +349,6 @@ def main():
         Contact Orientation Help Desk: **+91-XXXX-XXXXXX** | Email: **orientation@nrec.edu.in**
         """)
 
-    
     with tab2:
         st.write("### 📝 Manual Student ID Entry")
         st.info("Use this option if camera scanning is not available or as a backup method.")
@@ -395,7 +359,7 @@ def main():
             st.write("#### ✏️ Enter Student Details")
             manual_id = st.text_input(
                 "Student ID:", 
-                placeholder="e.g., NREC2025001",
+                placeholder="e.g., 2025001",
                 help="Enter the student ID exactly as shown on the QR code or ID card"
             )
             
@@ -418,7 +382,7 @@ def main():
             
             st.info("""
             **📝 ID Format Examples:**
-            • NREC2025001 (Regular format)
+            • NRCM2025001 (Regular format)
             • 2025CSE001 (Department wise)
             • Or any format in your system
             """)
@@ -439,18 +403,14 @@ def main():
         with col3:
             st.metric("🟡 Exits Today", "- -", help="Students who have checked out")
     
-    # Remove the old JavaScript and HTML components since we're using Streamlit's camera
-    # Enhanced JavaScript section is no longer needed
-    
     # Footer with college information
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #666; padding: 20px; background-color: #f8f9fa; border-radius: 10px;">
         <h4>🏫 Narsimha Reddy Engineering College</h4>
         <p><strong>Orientation Day - August 18th, 2025</strong></p>
-        <p>📍 Campus Address | 📞 Contact: +91-XXXX-XXXXXX | 📧 info@nrec.edu.in</p>
         <p style="font-size: 12px; margin-top: 15px;">
-            © 2025 NREC - Orientation Management System | Developed for Student Services
+            © 2025 NRCM - School of Computer Science 
         </p>
     </div>
     """, unsafe_allow_html=True)
