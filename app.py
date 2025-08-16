@@ -78,6 +78,29 @@ def init_google_sheets():
         st.info("Please check your credentials configuration.")
         return None
 
+def get_entry_statistics(sheet):
+    """Get real-time entry statistics"""
+    try:
+        records = sheet.get_all_records()
+        total_entries = sum(1 for row in records if row.get("EntryStatus") == "Entered")
+        total_exits = sum(1 for row in records if row.get("ExitStatus") == "Exited")
+        currently_present = total_entries - total_exits
+        total_students = len(records)
+        
+        return {
+            "total_entries": total_entries,
+            "total_exits": total_exits,
+            "currently_present": currently_present,
+            "total_students": total_students
+        }
+    except Exception as e:
+        return {
+            "total_entries": "Error",
+            "total_exits": "Error", 
+            "currently_present": "Error",
+            "total_students": "Error"
+        }
+
 def process_student_entry(qr_data, sheet):
     """Process the scanned student data for ENTRY ONLY"""
     try:
@@ -96,7 +119,7 @@ def process_student_entry(qr_data, sheet):
                 if not entry_status or entry_status == "":
                     sheet.update_cell(i, 4, "Entered")  # EntryStatus column
                     sheet.update_cell(i, 5, now)        # EntryTime column
-                    st.success(f"🎉 **WELCOME TO NRCM!**")
+                    st.success(f"🎉 **WELCOME TO NREC!**")
                     st.success(f"✅ **Entry recorded** for **{row['Name']}**")
                     st.info(f"📚 **Branch:** {row['Branch']}")
                     st.info(f"🕐 **Entry Time:** {now}")
@@ -135,7 +158,7 @@ def process_student_entry(qr_data, sheet):
 
 def main():
     st.set_page_config(
-        page_title="NRCM Entry Scanner", 
+        page_title="NREC Entry Scanner", 
         page_icon="🚪", 
         layout="wide"
     )
@@ -284,7 +307,7 @@ def main():
             st.write("#### ✏️ Enter Student ID")
             manual_id = st.text_input(
                 "Student ID:", 
-                placeholder="e.g., 20250001",
+                placeholder="e.g., 2025001",
                 help="Enter the student ID exactly as shown on the ID card"
             )
             
@@ -308,15 +331,25 @@ def main():
     st.write("---")
     st.write("#### 📈 Today's Entry Stats")
     
+    # Get real-time statistics
+    stats = get_entry_statistics(sheet)
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("🟢 Total Entries", "- -", help="Students checked in today")
+        st.metric("🟢 Total Entries", stats["total_entries"], help="Students checked in today")
     
     with col2:
-        st.metric("⏰ Current Time", datetime.now().strftime("%H:%M:%S"))
+        st.metric("👥 Currently Present", stats["currently_present"], help="Students currently inside")
     
     with col3:
+        st.metric("📊 Total Students", stats["total_students"], help="Total registered students")
+    
+    # Additional info
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("⏰ Current Time", datetime.now().strftime("%H:%M:%S"))
+    with col2:
         st.metric("📅 Date", datetime.now().strftime("%Y-%m-%d"))
     
     # Important Notice
