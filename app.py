@@ -96,7 +96,7 @@ def process_student_entry(qr_data, sheet):
                 if not entry_status or entry_status == "":
                     sheet.update_cell(i, 4, "Entered")  # EntryStatus column
                     sheet.update_cell(i, 5, now)        # EntryTime column
-                    st.success(f"🎉 **WELCOME TO NREC!**")
+                    st.success(f"🎉 **WELCOME TO NRCM!**")
                     st.success(f"✅ **Entry recorded** for **{row['Name']}**")
                     st.info(f"📚 **Branch:** {row['Branch']}")
                     st.info(f"🕐 **Entry Time:** {now}")
@@ -135,7 +135,7 @@ def process_student_entry(qr_data, sheet):
 
 def main():
     st.set_page_config(
-        page_title="NREC Entry Scanner", 
+        page_title="NRCM Entry Scanner", 
         page_icon="🚪", 
         layout="wide"
     )
@@ -284,7 +284,7 @@ def main():
             st.write("#### ✏️ Enter Student ID")
             manual_id = st.text_input(
                 "Student ID:", 
-                placeholder="e.g., 2025001",
+                placeholder="e.g., 20250001",
                 help="Enter the student ID exactly as shown on the ID card"
             )
             
