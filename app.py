@@ -168,7 +168,7 @@ def process_student_entry(qr_data, sheet):
 
 def main():
     st.set_page_config(
-        page_title="NREC Entry Scanner", 
+        page_title="NRCM Entry Scanner", 
         page_icon="🚪", 
         layout="wide"
     )
